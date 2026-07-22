@@ -27,11 +27,10 @@ function Hero() {
   return (
     <section className="hero">
       <div className="hero-canvas" />
-      <div className="hero-veil" />
       <div className="hero-scrim" />
       <div className="hero-content">
         <div className="hero-eyebrow">Original works</div>
-        <h1>Step into<br />the rotunda.</h1>
+        <h1>Welcome to<br />my gallery.</h1>
         <p>Fourteen works hang in a circular room around you. Use the arrows to turn the gallery and bring each piece into the light.</p>
       </div>
       <div className="scroll-cue">Scroll to enter</div>

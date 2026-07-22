@@ -1,40 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { paintings, metaLine, N, STEP, RADIUS, CENTER_PULL, panelWidth, mod } from "./data.js";
+import { paintings, metaLine, N, STEP, RADIUS, CENTER_PULL, panelWidth, mod, isFacing } from "./data.js";
 import DetailView from "./DetailView.jsx";
 
 const pad = (n) => (n < 10 ? "0" + n : "" + n);
 
-// How wide an arc, either side of dead-center, counts as "facing the
-// viewer" — paintings outside this arc are on the far side of the ring
-// and can't be hovered or selected until the room turns further.
-const FACING_ARC = 95;
-
-function normalize180(deg) {
-  let d = deg % 360;
-  if (d > 180) d -= 360;
-  if (d < -180) d += 360;
-  return d;
+function circularDist(a, b) {
+  const d = Math.abs(a - b) % N;
+  return Math.min(d, N - d);
 }
+
+const RING_PANEL_WIDTH = 300; // uniform frame size on the ring so spacing reads even and symmetric
 
 export default function Rotunda() {
   const [current, setCurrent] = useState(0); // unbounded step counter
-  const [hoveredIdx, setHoveredIdx] = useState(null); // painting under the cursor
   const [detailIdx, setDetailIdx] = useState(null); // null = rotunda view
   const [hideBox, setHideBox] = useState(null); // canvas-box hidden while its clone is out
+  const [hoveredIdx, setHoveredIdx] = useState(null); // painting under the cursor
   const sectionRef = useRef(null);
   const boxRefs = useRef({});
   const detailOpen = detailIdx !== null;
 
   const activeIdx = mod(current);
-
-  // Whether painting i currently faces the viewer, given the room's rotation
-  function isFacing(i) {
-    return Math.abs(normalize180(i * STEP - current * STEP)) < FACING_ARC;
-  }
-
-  // The one painting that's both hovered and facing — the one that's
-  // "highlighted and ready to be selected"
-  const highlightIdx = hoveredIdx !== null && isFacing(hoveredIdx) ? hoveredIdx : null;
 
   function step(dir) {
     if (detailOpen) return;
@@ -50,11 +36,15 @@ export default function Rotunda() {
     });
   }
 
+  // Hovering highlights a painting and makes it selectable — but only if it's
+  // currently facing the viewer (turned more than 90 deg away = not selectable).
+  // Clicking it opens the zoom view directly from wherever it hangs; the ring
+  // itself never rotates on click, only via the arrows/swipe/keys.
   function openDetail(i) {
-    if (detailOpen || !isFacing(i)) return;
-    setHoveredIdx(null);
+    if (detailOpen || !isFacing(i, current)) return;
     setDetailIdx(i);
     setHideBox(i);
+    setHoveredIdx(null);
   }
 
   function navigateDetail(j) {
@@ -127,24 +117,31 @@ export default function Rotunda() {
       <div className={"rotunda-stage" + (detailOpen ? " no-anim" : "")}>
         <div className="ring" style={{ transform: `rotateY(${-current * STEP}deg)` }}>
           {paintings.map((p, i) => {
-            const facing = isFacing(i);
-            const isHighlighted = highlightIdx === i;
-            const cls =
-              "panel" + (isHighlighted ? " active" : facing ? " near" : " dim");
-            // The hovered, front-facing painting steps off the wall and
-            // stands in the center of the room; everything else hangs back
-            const z = isHighlighted ? -(RADIUS - CENTER_PULL) : -RADIUS;
+            const d = circularDist(i, activeIdx);
+            const isActive = d === 0;
+            const facing = isFacing(i, current);
+            const cls = [
+              "panel",
+              isActive ? "active" : facing ? "facing" : "dim",
+              !isActive && facing && hoveredIdx === i ? "hovered" : ""
+            ].filter(Boolean).join(" ");
+            // The highlighted painting steps off the wall and stands in the
+            // center of the room, at its true proportions; every other frame
+            // on the ring shares one width so the gaps between them read as
+            // even and symmetric regardless of each canvas's own aspect ratio
+            const width = isActive ? panelWidth(p) : RING_PANEL_WIDTH;
+            const z = isActive ? -(RADIUS - CENTER_PULL) : -RADIUS;
             return (
               <div
                 key={i}
                 className={cls}
                 style={{
-                  width: panelWidth(p),
+                  width,
                   transform: `rotateY(${i * STEP}deg) translateZ(${z}px) translate(-50%, -50%)`
                 }}
-                onMouseEnter={() => facing && setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx((h) => (h === i ? null : h))}
                 onClick={() => openDetail(i)}
+                onMouseEnter={() => setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx((h) => (h === i ? null : h))}
               >
                 <div className="fixture" />
                 <div className="cone" />
@@ -173,10 +170,10 @@ export default function Rotunda() {
         <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
       </button>
 
-      <div className="walk-hint">Hover a painting to bring it forward, then click to view</div>
+      <div className="walk-hint">Use the arrows to walk the room</div>
       <div className="room-hud">
         <div className="count">{pad(activeIdx + 1)} / {pad(N)}</div>
-        <div className="name">{paintings[highlightIdx ?? activeIdx].title}</div>
+        <div className="name">{paintings[activeIdx].title}</div>
       </div>
 
       {detailOpen && (

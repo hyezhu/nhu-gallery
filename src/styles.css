@@ -111,7 +111,7 @@
     position:absolute;top:0;left:0;
     display:flex;flex-direction:column;align-items:center;
     transform-style:preserve-3d;
-    cursor:pointer;
+    cursor:default;pointer-events:none;
     transition:opacity .9s ease, filter .9s ease, transform 1.1s cubic-bezier(.6,.05,.25,1);
   }
   .panel .fixture{
@@ -146,6 +146,9 @@
     box-shadow:
       0 26px 50px -18px rgba(0,0,0,.75),
       0 0 60px -8px rgba(255,224,170,.18);
+    /* Deliberately its own (fast) transition, separate from the panel's slow
+       1.1s ring-rotation transform — the hover pop should feel immediate */
+    transition:transform .3s ease, box-shadow .3s ease;
   }
   .canvas-box .art{
     width:100%;aspect-ratio:var(--ar,3/4);
@@ -170,12 +173,12 @@
     opacity:1;filter:brightness(1);
   }
   .panel.facing.hovered .canvas-box{
+    transform:translateZ(46px) scale(1.05);
     box-shadow:
-      0 26px 50px -18px rgba(0,0,0,.75),
-      0 0 70px 4px rgba(255,224,170,.4);
+      0 32px 64px -18px rgba(0,0,0,.8),
+      0 0 84px 6px rgba(255,224,170,.45);
   }
   .panel.active{opacity:1;filter:none;cursor:zoom-in;pointer-events:auto;}
-  .panel{cursor:default;pointer-events:none;}
 
   /* ---------- Arrows ---------- */
   .walk-arrow{
