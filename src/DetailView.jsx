@@ -98,6 +98,31 @@ export default function DetailView({ idx, getBoxRect, onNavigate, onClose }) {
     return () => document.removeEventListener("keydown", onKey);
   });
 
+  // Touch swipe: same left/right paging as the room, so a phone user isn't
+  // stuck hunting for the small nav buttons while zoomed in.
+  useEffect(() => {
+    let touchX = null;
+    let touchY = null;
+    function onTouchStart(e) {
+      touchX = e.touches[0].clientX;
+      touchY = e.touches[0].clientY;
+    }
+    function onTouchEnd(e) {
+      if (touchX === null) return;
+      const dx = e.changedTouches[0].clientX - touchX;
+      const dy = e.changedTouches[0].clientY - touchY;
+      if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) onNavigate(idx + (dx < 0 ? 1 : -1));
+      touchX = null;
+      touchY = null;
+    }
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [idx, onNavigate]);
+
   return (
     <>
       <div

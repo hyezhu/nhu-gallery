@@ -11,6 +11,50 @@ function circularDist(a, b) {
 
 const RING_PANEL_WIDTH = 300; // uniform frame size on the ring so spacing reads even and symmetric
 
+// The room's geometry (radius, panel widths) was tuned by eye at a desktop
+// viewport around 1400px. Below that, shrink everything by the same factor
+// so the ring, gaps, and lighting fixtures all stay proportional instead of
+// spilling off a phone screen — the room just gets smaller, not different.
+const REF_VIEWPORT = 1400;
+const MIN_SCALE = 0.46;
+
+function useRoomScale() {
+  const [vw, setVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : REF_VIEWPORT));
+  useEffect(() => {
+    let raf = null;
+    const onResize = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        setVw(window.innerWidth);
+      });
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+  return Math.min(1, Math.max(MIN_SCALE, vw / REF_VIEWPORT));
+}
+
+// Touch is the primary way to turn the room on a phone, so the hint should
+// say so instead of pointing at arrows a thumb has to reach for.
+function useCoarsePointer() {
+  const [coarse, setCoarse] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const onChange = () => setCoarse(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return coarse;
+}
+
 export default function Rotunda() {
   const [current, setCurrent] = useState(0); // unbounded step counter
   const [detailIdx, setDetailIdx] = useState(null); // null = rotunda view
@@ -19,8 +63,13 @@ export default function Rotunda() {
   const sectionRef = useRef(null);
   const boxRefs = useRef({});
   const detailOpen = detailIdx !== null;
+  const scale = useRoomScale();
+  const coarsePointer = useCoarsePointer();
 
   const activeIdx = mod(current);
+  const radius = RADIUS * scale;
+  const centerPull = CENTER_PULL * scale;
+  const ringPanelWidth = RING_PANEL_WIDTH * scale;
 
   function step(dir) {
     if (detailOpen) return;
@@ -78,12 +127,20 @@ export default function Rotunda() {
   useEffect(() => {
     const el = sectionRef.current;
     let touchX = null;
-    const onTouchStart = (e) => { touchX = e.touches[0].clientX; };
+    let touchY = null;
+    const onTouchStart = (e) => {
+      touchX = e.touches[0].clientX;
+      touchY = e.touches[0].clientY;
+    };
     const onTouchEnd = (e) => {
       if (touchX === null || detailOpen) return;
       const dx = e.changedTouches[0].clientX - touchX;
-      if (Math.abs(dx) > 48) step(dx < 0 ? 1 : -1);
+      const dy = e.changedTouches[0].clientY - touchY;
+      // Only treat it as a room turn if the gesture was more horizontal than
+      // vertical — otherwise a scroll-the-page swipe would spin the ring too.
+      if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
       touchX = null;
+      touchY = null;
     };
     let wheelAcc = 0, wheelLockUntil = 0;
     const onWheel = (e) => {
@@ -114,7 +171,10 @@ export default function Rotunda() {
       <div className="rotunda-floor" />
       {/* While the detail view is open the room is frozen (no-anim): it can
           snap underneath the veil, so measurements are always settled */}
-      <div className={"rotunda-stage" + (detailOpen ? " no-anim" : "")}>
+      <div
+        className={"rotunda-stage" + (detailOpen ? " no-anim" : "")}
+        style={{ "--rotunda-scale": scale }}
+      >
         <div className="ring" style={{ transform: `rotateY(${-current * STEP}deg)` }}>
           {paintings.map((p, i) => {
             const d = circularDist(i, activeIdx);
@@ -128,9 +188,11 @@ export default function Rotunda() {
             // The highlighted painting steps off the wall and stands in the
             // center of the room, at its true proportions; every other frame
             // on the ring shares one width so the gaps between them read as
-            // even and symmetric regardless of each canvas's own aspect ratio
-            const width = isActive ? panelWidth(p) : RING_PANEL_WIDTH;
-            const z = isActive ? -(RADIUS - CENTER_PULL) : -RADIUS;
+            // even and symmetric regardless of each canvas's own aspect ratio.
+            // Both are scaled together so the room shrinks as one piece on
+            // narrow screens instead of the active painting staying huge.
+            const width = isActive ? panelWidth(p) * scale : ringPanelWidth;
+            const z = isActive ? -(radius - centerPull) : -radius;
             return (
               <div
                 key={i}
@@ -170,7 +232,9 @@ export default function Rotunda() {
         <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
       </button>
 
-      <div className="walk-hint">Use the arrows to walk the room</div>
+      <div className="walk-hint">
+        {coarsePointer ? "Swipe to walk the room" : "Use the arrows to walk the room"}
+      </div>
       <div className="room-hud">
         <div className="count">{pad(activeIdx + 1)} / {pad(N)}</div>
         <div className="name">{paintings[activeIdx].title}</div>
