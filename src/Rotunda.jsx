@@ -4,13 +4,21 @@ import DetailView from "./DetailView.jsx";
 
 const pad = (n) => (n < 10 ? "0" + n : "" + n);
 
-function circularDist(a, b) {
-  const d = Math.abs(a - b) % N;
-  return Math.min(d, N - d);
+// How wide an arc, either side of dead-center, counts as "facing the
+// viewer" — paintings outside this arc are on the far side of the ring
+// and can't be hovered or selected until the room turns further.
+const FACING_ARC = 95;
+
+function normalize180(deg) {
+  let d = deg % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
 }
 
 export default function Rotunda() {
   const [current, setCurrent] = useState(0); // unbounded step counter
+  const [hoveredIdx, setHoveredIdx] = useState(null); // painting under the cursor
   const [detailIdx, setDetailIdx] = useState(null); // null = rotunda view
   const [hideBox, setHideBox] = useState(null); // canvas-box hidden while its clone is out
   const sectionRef = useRef(null);
@@ -18,6 +26,15 @@ export default function Rotunda() {
   const detailOpen = detailIdx !== null;
 
   const activeIdx = mod(current);
+
+  // Whether painting i currently faces the viewer, given the room's rotation
+  function isFacing(i) {
+    return Math.abs(normalize180(i * STEP - current * STEP)) < FACING_ARC;
+  }
+
+  // The one painting that's both hovered and facing — the one that's
+  // "highlighted and ready to be selected"
+  const highlightIdx = hoveredIdx !== null && isFacing(hoveredIdx) ? hoveredIdx : null;
 
   function step(dir) {
     if (detailOpen) return;
@@ -34,7 +51,8 @@ export default function Rotunda() {
   }
 
   function openDetail(i) {
-    if (detailOpen || i !== activeIdx) return;
+    if (detailOpen || !isFacing(i)) return;
+    setHoveredIdx(null);
     setDetailIdx(i);
     setHideBox(i);
   }
@@ -109,12 +127,13 @@ export default function Rotunda() {
       <div className={"rotunda-stage" + (detailOpen ? " no-anim" : "")}>
         <div className="ring" style={{ transform: `rotateY(${-current * STEP}deg)` }}>
           {paintings.map((p, i) => {
-            const d = circularDist(i, activeIdx);
+            const facing = isFacing(i);
+            const isHighlighted = highlightIdx === i;
             const cls =
-              "panel" + (d === 0 ? " active" : d === 1 ? " near" : " dim");
-            // The highlighted painting steps off the wall and stands in the
-            // center of the room; everything else hangs back on the ring
-            const z = d === 0 ? -(RADIUS - CENTER_PULL) : -RADIUS;
+              "panel" + (isHighlighted ? " active" : facing ? " near" : " dim");
+            // The hovered, front-facing painting steps off the wall and
+            // stands in the center of the room; everything else hangs back
+            const z = isHighlighted ? -(RADIUS - CENTER_PULL) : -RADIUS;
             return (
               <div
                 key={i}
@@ -123,6 +142,8 @@ export default function Rotunda() {
                   width: panelWidth(p),
                   transform: `rotateY(${i * STEP}deg) translateZ(${z}px) translate(-50%, -50%)`
                 }}
+                onMouseEnter={() => facing && setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx((h) => (h === i ? null : h))}
                 onClick={() => openDetail(i)}
               >
                 <div className="fixture" />
@@ -152,10 +173,10 @@ export default function Rotunda() {
         <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
       </button>
 
-      <div className="walk-hint">Use the arrows to walk the room</div>
+      <div className="walk-hint">Hover a painting to bring it forward, then click to view</div>
       <div className="room-hud">
         <div className="count">{pad(activeIdx + 1)} / {pad(N)}</div>
-        <div className="name">{paintings[activeIdx].title}</div>
+        <div className="name">{paintings[highlightIdx ?? activeIdx].title}</div>
       </div>
 
       {detailOpen && (

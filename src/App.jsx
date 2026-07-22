@@ -27,6 +27,7 @@ function Hero() {
   return (
     <section className="hero">
       <div className="hero-canvas" />
+      <div className="hero-veil" />
       <div className="hero-scrim" />
       <div className="hero-content">
         <div className="hero-eyebrow">Original works</div>
@@ -106,7 +107,10 @@ export default function App() {
       <Contact />
       <footer>
         <span>&copy; 2026 Nhu</span>
-        <span>Instagram &nbsp;·&nbsp; Belgrade, Serbia</span>
+        <span>
+          <a href="https://www.instagram.com/hyezhu" target="_blank" rel="noopener noreferrer">Instagram</a>
+          &nbsp;·&nbsp; Belgrade, Serbia
+        </span>
       </footer>
     </>
   );
