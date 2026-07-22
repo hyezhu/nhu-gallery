@@ -30,3 +30,17 @@ export const panelWidth = (p) => {
 };
 
 export const mod = (a) => ((a % N) + N) % N;
+
+// How wide an arc, either side of dead-center, counts as "facing the
+// viewer" — paintings outside this arc are on the far side of the ring
+// and can't be hovered or selected until the room turns further.
+const FACING_ARC = 95;
+
+function normalize180(deg) {
+  let d = deg % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+export const isFacing = (i, current) => Math.abs(normalize180(i * STEP - current * STEP)) < FACING_ARC;
