@@ -12,9 +12,9 @@ function circularDist(a, b) {
 const RING_PANEL_WIDTH = 300; // uniform frame size on the ring so spacing reads even and symmetric
 
 // The room's geometry (radius, panel widths) was tuned by eye at a desktop
-// viewport around 1400px. Below that, shrink everything by the same factor
-// so the ring, gaps, and lighting fixtures all stay proportional instead of
-// spilling off a phone screen — the room just gets smaller, not different.
+// viewport around 1400px. Below that (but still above the mobile breakpoint,
+// e.g. tablets), shrink everything by the same factor so the ring and its
+// gaps stay proportional instead of spilling off a narrower screen.
 const REF_VIEWPORT = 1400;
 const MIN_SCALE = 0.46;
 
@@ -55,6 +55,25 @@ function useCoarsePointer() {
   return coarse;
 }
 
+// Below this width the 3D ring (14 panels sliding around a rotating
+// cylinder) is dropped in favor of a flat 3-up strip — same breakpoint the
+// rest of the mobile chrome already switches on. Small screens don't have
+// room to make a rotating ring read as a ring, so the animated slide just
+// looked like the wrong painting sliding in, and the perspective made
+// everything tiny to fit the whole circle in frame.
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width:720px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width:720px)");
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
+
 export default function Rotunda() {
   const [current, setCurrent] = useState(0); // unbounded step counter
   const [detailIdx, setDetailIdx] = useState(null); // null = rotunda view
@@ -65,6 +84,7 @@ export default function Rotunda() {
   const detailOpen = detailIdx !== null;
   const scale = useRoomScale();
   const coarsePointer = useCoarsePointer();
+  const isMobile = useIsMobile();
 
   const activeIdx = mod(current);
   const radius = RADIUS * scale;
@@ -169,61 +189,93 @@ export default function Rotunda() {
   return (
     <section id="work" className="rotunda" ref={sectionRef}>
       <div className="rotunda-floor" />
-      {/* While the detail view is open the room is frozen (no-anim): it can
-          snap underneath the veil, so measurements are always settled */}
-      <div
-        className={"rotunda-stage" + (detailOpen ? " no-anim" : "")}
-        style={{ "--rotunda-scale": scale }}
-      >
-        <div className="ring" style={{ transform: `rotateY(${-current * STEP}deg)` }}>
-          {paintings.map((p, i) => {
-            const d = circularDist(i, activeIdx);
-            const isActive = d === 0;
-            const facing = isFacing(i, current);
-            const cls = [
-              "panel",
-              isActive ? "active" : facing ? "facing" : "dim",
-              !isActive && facing && hoveredIdx === i ? "hovered" : ""
-            ].filter(Boolean).join(" ");
-            // The highlighted painting steps off the wall and stands in the
-            // center of the room, at its true proportions; every other frame
-            // on the ring shares one width so the gaps between them read as
-            // even and symmetric regardless of each canvas's own aspect ratio.
-            // Both are scaled together so the room shrinks as one piece on
-            // narrow screens instead of the active painting staying huge.
-            const width = isActive ? panelWidth(p) * scale : ringPanelWidth;
-            const z = isActive ? -(radius - centerPull) : -radius;
+      {isMobile ? (
+        // Flat 3-up strip: previous/next just peek at the edges (tap to bring
+        // one to center), the center one is large and is the only one that
+        // opens the zoom view. Swapping which painting fills each slot is an
+        // instant cut, not a slide — nothing moves across the screen.
+        <div className="mobile-room">
+          {[-1, 0, 1].map((offset) => {
+            const i = mod(activeIdx + offset);
+            const p = paintings[i];
+            const isActive = offset === 0;
             return (
               <div
                 key={i}
-                className={cls}
-                style={{
-                  width,
-                  transform: `rotateY(${i * STEP}deg) translateZ(${z}px) translate(-50%, -50%)`
-                }}
-                onClick={() => openDetail(i)}
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx((h) => (h === i ? null : h))}
+                className={"mobile-panel" + (isActive ? " active" : " side")}
+                onClick={() => (isActive ? openDetail(i) : step(offset))}
               >
-                <div className="fixture" />
-                <div className="cone" />
-                <div className="glow" />
                 <div
                   className="canvas-box"
-                  ref={(el) => (boxRefs.current[i] = el)}
+                  ref={isActive ? (el) => (boxRefs.current[i] = el) : undefined}
                   style={hideBox === i ? { visibility: "hidden" } : undefined}
                 >
                   <div className="art" style={{ "--ar": p.ar, backgroundImage: p.bg }} />
                 </div>
-                <div className="placard">
-                  <div className="title">{p.title}</div>
-                  <div className="meta">{metaLine(p)}</div>
-                </div>
+                {isActive && (
+                  <div className="placard">
+                    <div className="title">{p.title}</div>
+                    <div className="meta">{metaLine(p)}</div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-      </div>
+      ) : (
+        /* While the detail view is open the room is frozen (no-anim): it can
+           snap underneath the veil, so measurements are always settled */
+        <div
+          className={"rotunda-stage" + (detailOpen ? " no-anim" : "")}
+          style={{ "--rotunda-scale": scale }}
+        >
+          <div className="ring" style={{ transform: `rotateY(${-current * STEP}deg)` }}>
+            {paintings.map((p, i) => {
+              const d = circularDist(i, activeIdx);
+              const isActive = d === 0;
+              const facing = isFacing(i, current);
+              const cls = [
+                "panel",
+                isActive ? "active" : facing ? "facing" : "dim",
+                !isActive && facing && hoveredIdx === i ? "hovered" : ""
+              ].filter(Boolean).join(" ");
+              // The highlighted painting steps off the wall and stands in the
+              // center of the room, at its true proportions; every other frame
+              // on the ring shares one width so the gaps between them read as
+              // even and symmetric regardless of each canvas's own aspect ratio.
+              // Both are scaled together so the room shrinks as one piece on
+              // narrow screens instead of the active painting staying huge.
+              const width = isActive ? panelWidth(p) * scale : ringPanelWidth;
+              const z = isActive ? -(radius - centerPull) : -radius;
+              return (
+                <div
+                  key={i}
+                  className={cls}
+                  style={{
+                    width,
+                    transform: `rotateY(${i * STEP}deg) translateZ(${z}px) translate(-50%, -50%)`
+                  }}
+                  onClick={() => openDetail(i)}
+                  onMouseEnter={() => setHoveredIdx(i)}
+                  onMouseLeave={() => setHoveredIdx((h) => (h === i ? null : h))}
+                >
+                  <div
+                    className="canvas-box"
+                    ref={(el) => (boxRefs.current[i] = el)}
+                    style={hideBox === i ? { visibility: "hidden" } : undefined}
+                  >
+                    <div className="art" style={{ "--ar": p.ar, backgroundImage: p.bg }} />
+                  </div>
+                  <div className="placard">
+                    <div className="title">{p.title}</div>
+                    <div className="meta">{metaLine(p)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <button className="walk-arrow arrow-prev" aria-label="Previous painting" onClick={() => step(-1)}>
         <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
