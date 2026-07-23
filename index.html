@@ -10,6 +10,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Netlify's build bot only detects forms present in the static HTML,
+         but the real one is rendered client-side by React below. This
+         hidden twin registers the form (name + fields) with Netlify at
+         build time; the React form in Contact posts to it via fetch. -->
+    <form name="contact" data-netlify="true" data-netlify-honeypot="bot-field" hidden>
+      <input type="text" name="name" />
+      <input type="email" name="email" />
+      <textarea name="message"></textarea>
+      <input type="text" name="bot-field" />
+    </form>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

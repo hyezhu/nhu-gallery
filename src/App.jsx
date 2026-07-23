@@ -76,17 +76,74 @@ function About() {
   );
 }
 
+const encodeForm = (data) =>
+  Object.keys(data)
+    .map((k) => encodeURIComponent(k) + "=" + encodeURIComponent(data[k]))
+    .join("&");
+
 function Contact() {
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+
+  // Netlify Forms only processes a plain POST to "/" with the same
+  // form-name it saw at build time (see the hidden twin in index.html) —
+  // there's no backend here to submit to otherwise.
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    setStatus("sending");
+    try {
+      const res = await fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: encodeForm(data)
+      });
+      if (!res.ok) throw new Error("Form submission failed");
+      form.reset();
+      setStatus("sent");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  if (status === "sent") {
+    return (
+      <section className="contact plain" id="contact">
+        <div className="eyebrow">Inquiries</div>
+        <h2>Thank you.</h2>
+        <p>Your inquiry is on its way — I reply within a couple of days.</p>
+      </section>
+    );
+  }
+
   return (
     <section className="contact plain" id="contact">
       <div className="eyebrow">Inquiries</div>
       <h2>Interested in a piece?</h2>
       <p>For availability, pricing, or commission requests, send a note — I reply within a couple of days.</p>
-      <form className="contact-form" onSubmit={(e) => e.preventDefault()}>
-        <input type="text" placeholder="Your name" required />
-        <input type="email" placeholder="Email address" required />
-        <textarea placeholder="Which painting, or what you have in mind" />
-        <button type="submit">Send inquiry</button>
+      <form
+        className="contact-form"
+        name="contact"
+        method="POST"
+        data-netlify="true"
+        data-netlify-honeypot="bot-field"
+        onSubmit={handleSubmit}
+      >
+        <input type="hidden" name="form-name" value="contact" />
+        <p hidden>
+          <label>
+            Don't fill this out if you're human: <input name="bot-field" />
+          </label>
+        </p>
+        <input type="text" name="name" placeholder="Your name" required />
+        <input type="email" name="email" placeholder="Email address" required />
+        <textarea name="message" placeholder="Which painting, or what you have in mind" />
+        {status === "error" && (
+          <p className="form-error">Something went wrong sending that — please try again, or email me directly.</p>
+        )}
+        <button type="submit" disabled={status === "sending"}>
+          {status === "sending" ? "Sending…" : "Send inquiry"}
+        </button>
       </form>
     </section>
   );

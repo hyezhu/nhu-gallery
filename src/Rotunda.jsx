@@ -162,18 +162,28 @@ export default function Rotunda() {
       touchX = null;
       touchY = null;
     };
-    let wheelAcc = 0, wheelLockUntil = 0;
+    let wheelAcc = 0;
+    let gestureStepped = false; // this swipe (including its momentum tail) already turned the room once
+    let gestureEndTimer = null;
     const onWheel = (e) => {
       if (detailOpen) return;
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // vertical scroll passes through
       e.preventDefault(); // keep the browser's back/forward swipe gesture from firing
-      const now = performance.now();
-      if (now < wheelLockUntil) return; // swallow trackpad inertia mid-rotation
+      // A trackpad flick keeps sending decaying "momentum" wheel events for
+      // well over a second after the finger lifts — longer than any fixed
+      // lockout window. Gate on a real pause in events (no wheel for 150ms)
+      // instead of a timer, so one swipe's momentum tail can never re-cross
+      // the threshold and sneak in a second, unintended step.
+      clearTimeout(gestureEndTimer);
+      gestureEndTimer = setTimeout(() => {
+        wheelAcc = 0;
+        gestureStepped = false;
+      }, 150);
+      if (gestureStepped) return;
       wheelAcc += e.deltaX;
       if (Math.abs(wheelAcc) > 90) {
         step(wheelAcc > 0 ? 1 : -1);
-        wheelAcc = 0;
-        wheelLockUntil = now + 700;
+        gestureStepped = true;
       }
     };
     el.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -183,6 +193,7 @@ export default function Rotunda() {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("wheel", onWheel);
+      clearTimeout(gestureEndTimer);
     };
   }, [detailOpen]);
 

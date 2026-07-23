@@ -236,6 +236,8 @@
     padding:14px 32px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:background .3s ease;
   }
   .contact-form button:hover{background:var(--accent);}
+  .contact-form button:disabled{opacity:.6;cursor:default;}
+  .contact-form .form-error{color:var(--accent);font-size:13px;margin-top:-8px;}
 
   footer{
     padding:40px 48px;display:flex;justify-content:space-between;align-items:center;
