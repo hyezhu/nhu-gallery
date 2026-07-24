@@ -171,14 +171,21 @@ export default function Rotunda() {
       e.preventDefault(); // keep the browser's back/forward swipe gesture from firing
       // A trackpad flick keeps sending decaying "momentum" wheel events for
       // well over a second after the finger lifts — longer than any fixed
-      // lockout window. Gate on a real pause in events (no wheel for 150ms)
-      // instead of a timer, so one swipe's momentum tail can never re-cross
-      // the threshold and sneak in a second, unintended step.
+      // lockout window. Gate on a real pause in events instead of a timer,
+      // so one swipe's momentum tail can never re-cross the threshold and
+      // sneak in a second, unintended step. The pause needs to be generous:
+      // real momentum events don't arrive on a perfectly even clock, and a
+      // gap that's too short (150ms) reads as "gesture over" mid-momentum,
+      // which re-arms the threshold early and made rotation glitch — extra
+      // jumps mid-swipe, or a follow-up swipe swallowed as if it were still
+      // the previous one. Touching the trackpad again always kills any
+      // in-flight momentum first, so a real new gesture is never this close
+      // on the heels of the last one — 400ms is safely inside that gap.
       clearTimeout(gestureEndTimer);
       gestureEndTimer = setTimeout(() => {
         wheelAcc = 0;
         gestureStepped = false;
-      }, 150);
+      }, 400);
       if (gestureStepped) return;
       wheelAcc += e.deltaX;
       if (Math.abs(wheelAcc) > 90) {
