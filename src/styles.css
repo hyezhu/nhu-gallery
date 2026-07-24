@@ -110,6 +110,15 @@
     position:absolute;top:0;left:0;
     display:flex;flex-direction:column;align-items:center;
     transform-style:preserve-3d;
+    /* Default transform-origin is the panel's own center, which sits off to
+       one side of the ring's rotation axis (since each panel's width varies
+       by the painting's aspect ratio). Rotating around that off-axis point
+       instead of the ring's own axis meant this panel's rotateY() didn't
+       truly cancel the ring's opposite rotateY() — the "active" painting
+       drifted off-center more with every step, worse for wider panels. Both
+       panel and ring pivot at the same local point (0,0), so anchoring the
+       panel's transform there too makes the two rotations genuinely inverse. */
+    transform-origin:0 0;
     backface-visibility:hidden;-webkit-backface-visibility:hidden;
     cursor:default;pointer-events:none;
     transition:opacity .9s ease, filter .9s ease, transform 1.1s cubic-bezier(.6,.05,.25,1);
